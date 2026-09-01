@@ -15,16 +15,15 @@ export function loadOpenCV(): Promise<any> {
       return;
     }
 
-    // Si ya está cargado globalmente
     if ((window as any).cv && typeof (window as any).cv.Mat === 'function') {
       cvReady = true;
       resolve((window as any).cv);
       return;
     }
 
-    // Crear script para cargar OpenCV desde la web oficial
+    // Usar jsDelivr CDN (mucho más rápido en móviles de toda la región)
     const script = document.createElement('script');
-    script.src = 'https://docs.opencv.org/4.8.0/opencv.js';
+    script.src = 'https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.9.0-release.0/opencv.js';
     script.async = true;
     script.type = 'text/javascript';
 
@@ -36,19 +35,18 @@ export function loadOpenCV(): Promise<any> {
           cvReady = true;
           resolve(cvInstance);
         }
-      }, 200);
+      }, 100);
     };
 
     script.onerror = () => {
-      reject(new Error('No se pudo conectar para descargar OpenCV. Verifica tus datos móviles o Wi-Fi.'));
+      reject(new Error('No se pudo descargar OpenCV desde el CDN rápido.'));
     };
 
     document.head.appendChild(script);
 
-    // Timeout de seguridad de 35 segundos
     setTimeout(() => {
       if (!cvReady) {
-        reject(new Error('Tiempo de espera agotado al descargar OpenCV.'));
+        reject(new Error('Tiempo de espera agotado.'));
       }
     }, 35000);
   });
