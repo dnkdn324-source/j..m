@@ -1,5 +1,3 @@
-import cvModule from '@techstark/opencv-js';
-
 let cvReady: boolean = false;
 let cvLoading: Promise<any> | null = null;
 
@@ -7,71 +5,63 @@ export function isCvReady(): boolean {
   return cvReady;
 }
 
-export async function loadOpenCV(): Promise<any> {
-  if (cvReady) return cvModule;
+export function loadOpenCV(): Promise<any> {
+  if (cvReady && (window as any).cv) return Promise.resolve((window as any).cv);
   if (cvLoading) return cvLoading;
 
   cvLoading = new Promise((resolve, reject) => {
-    try {
-      if (!cvModule) {
-        reject(new Error('El módulo de OpenCV no está disponible.'));
-        return;
-      }
-
-      // Si ya está inicializado previamente
-      if (typeof cvModule.Mat === 'function') {
-        cvReady = true;
-        resolve(cvModule);
-        return;
-      }
-
-      // Interceptar o asegurar el callback de inicialización de WebAssembly
-      const originalOnRuntimeInitialized = cvModule.onRuntimeInitialized;
-      cvModule.onRuntimeInitialized = () => {
-        if (originalOnRuntimeInitialized) {
-          try {
-            originalOnRuntimeInitialized();
-          } catch (e) {
-            console.error('Error en el onRuntimeInitialized original:', e);
-          }
-        }
-        cvReady = true;
-        console.log('OpenCV.js se inicializó correctamente vía WebAssembly.');
-        resolve(cvModule);
-      };
-
-      // Sondeo periódico por si el callback se dispara antes o de forma distinta en móviles
-      const checkInterval = setInterval(() => {
-        if (cvModule && typeof cvModule.Mat === 'function') {
-          clearInterval(checkInterval);
-          if (!cvReady) {
-            cvReady = true;
-            console.log('OpenCV.js detectado listo por sondeo.');
-            resolve(cvModule);
-          }
-        }
-      }, 100);
-
-      // Temporizador de seguridad de 30 segundos con mensaje descriptivo
-      setTimeout(() => {
-        clearInterval(checkInterval);
-        if (!cvReady) {
-          reject(new Error('OpenCV.js no pudo cargarse (timeout de 30s). Revisa tu conexión o si el archivo .wasm es accesible.'));
-        }
-      }, 30000);
-    } catch (err) {
-      reject(err);
+    if (typeof window === 'undefined') {
+      reject(new Error('Entorno de ventana no disponible'));
+      return;
     }
+
+    // Si ya está cargado globalmente
+    if ((window as any).cv && typeof (window as any).cv.Mat === 'function') {
+      cvReady = true;
+      resolve((window as any).cv);
+      return;
+    }
+
+    // Crear script para cargar OpenCV desde la web oficial
+    const script = document.createElement('script');
+    script.src = 'https://docs.opencv.org/4.8.0/opencv.js';
+    script.async = true;
+    script.type = 'text/javascript';
+
+    script.onload = () => {
+      const checkInterval = setInterval(() => {
+        const cvInstance = (window as any).cv;
+        if (cvInstance && typeof cvInstance.Mat === 'function') {
+          clearInterval(checkInterval);
+          cvReady = true;
+          resolve(cvInstance);
+        }
+      }, 200);
+    };
+
+    script.onerror = () => {
+      reject(new Error('No se pudo conectar para descargar OpenCV. Verifica tus datos móviles o Wi-Fi.'));
+    };
+
+    document.head.appendChild(script);
+
+    // Timeout de seguridad de 35 segundos
+    setTimeout(() => {
+      if (!cvReady) {
+        reject(new Error('Tiempo de espera agotado al descargar OpenCV.'));
+      }
+    }, 35000);
   });
 
   return cvLoading;
 }
 
 export function getCv() {
-  if (!cvReady || !cvModule) {
-    throw new Error('OpenCV.js no está cargado todavía. Llama a loadOpenCV() primero.');
+  const cvInstance = (window as any).cv;
+  if (!cvReady || !cvInstance) {
+    throw new Error('OpenCV.js no está cargado todavía.');
   }
-  return cvModule;
+  return cvInstance;
 }
 
-export { cvModule as cv };
+export { };
